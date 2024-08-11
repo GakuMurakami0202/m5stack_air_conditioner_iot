@@ -9,6 +9,9 @@ const uint16_t kRecvPin = 36;
 IRrecv irrecv(kRecvPin);
 decode_results results;
 
+unsigned long lastTime = 0; // 前回の信号を受信した時間を記録する変数
+bool delayExceeded = false; // 2秒超過フラグ
+
 void setup() {
   // M5Stack Core2の初期化
   M5.begin();
@@ -24,6 +27,22 @@ void setup() {
 
 void loop() {
   if (irrecv.decode(&results)) {
+    unsigned long currentTime = millis();
+    unsigned long delayTime = currentTime - lastTime; // 前回の信号からの時間差を計算
+
+    if (delayTime > 2000) { // 遅延が2秒を超えた場合
+      Serial.println("----------------------------");
+      delayExceeded = true;
+    }
+
+    if (!delayExceeded) {
+      Serial.print("IR Signal Received after ");
+      Serial.print(delayTime);
+      Serial.println(" ms");
+    } else {
+      delayExceeded = false; // フラグをリセット
+    }
+
     Serial.println("IR Signal Received:");
     // 赤外線信号の詳細をシリアルモニタに表示
     serialPrintUint64(results.value, HEX);
@@ -31,6 +50,9 @@ void loop() {
     
     // 受信した信号の復号結果を表示
     Serial.println(resultToHumanReadableBasic(&results));
+
+    // 現在の時間をlastTimeに保存
+    lastTime = currentTime;
 
     // 受信した信号をリセット
     irrecv.resume();
