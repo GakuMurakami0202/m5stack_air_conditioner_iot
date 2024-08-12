@@ -3,14 +3,10 @@
 #include <IRremoteESP8266.h>
 #include <IRutils.h>
 
-// 赤外線受信ピン
-const uint16_t kRecvPin = 36;
+const uint16_t kRecvPin = 36; // 赤外線受信ピン
 
-IRrecv irrecv(kRecvPin);
+IRrecv irrecv(kRecvPin, 1024, 15, true); // バッファサイズを大きくし、長い信号に対応
 decode_results results;
-
-unsigned long lastTime = 0; // 前回の信号を受信した時間を記録する変数
-bool delayExceeded = false; // 2秒超過フラグ
 
 void setup() {
   // M5Stack Core2の初期化
@@ -27,32 +23,23 @@ void setup() {
 
 void loop() {
   if (irrecv.decode(&results)) {
-    unsigned long currentTime = millis();
-    unsigned long delayTime = currentTime - lastTime; // 前回の信号からの時間差を計算
-
-    if (delayTime > 2000) { // 遅延が2秒を超えた場合
-      Serial.println("----------------------------");
-      delayExceeded = true;
+    // 長い信号を検出した場合、分割して解析
+    if (results.overflow) {
+      Serial.println("Warning: IR signal too long, possible overflow detected!");
+      Serial.println("Attempting to analyze in chunks...");
     }
 
-    if (!delayExceeded) {
-      Serial.print("IR Signal Received after ");
-      Serial.print(delayTime);
-      Serial.println(" ms");
-    } else {
-      delayExceeded = false; // フラグをリセット
-    }
-
-    Serial.println("IR Signal Received:");
-    // 赤外線信号の詳細をシリアルモニタに表示
+    // 信号をシリアルモニタに表示
     serialPrintUint64(results.value, HEX);
     Serial.println();
-    
-    // 受信した信号の復号結果を表示
+
+    // 信号を人間が読める形式で表示
     Serial.println(resultToHumanReadableBasic(&results));
 
-    // 現在の時間をlastTimeに保存
-    lastTime = currentTime;
+    // 信号の長さが長すぎた場合の警告
+    if (results.overflow) {
+      Serial.println("Warning: Signal length exceeded buffer capacity. Signal might be incomplete.");
+    }
 
     // 受信した信号をリセット
     irrecv.resume();
